@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shortest Path Universitas Bengkulu</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="sidebar">
+    <div id="header">
+        <h2>Sistem Navigasi UNIB</h2>
+        <p>Analisis Rute Terpendek Kampus</p>
+    </div>
+
+    <div class="content-panel">
+        <div>
+            <div class="section-title">Pilih Posisi</div>
+            
+            <label for="select-start">Titik Awal:</label>
+            <select id="select-start" onchange="handleSelectLocation()">
+                <option value="">-- Klik Manual di Peta --</option>
+                <option value='{"lat":-3.760538,"lng":102.272624}'>Gerbang Utama UNIB</option>
+                <option value='{"lat":-3.758488,"lng":102.276664}'>Laboratorium Teknik</option>
+                <option value='{"lat":-3.759751,"lng":102.272474}'>Gedung Rektorat</option>
+                <option value='{"lat":-3.757755,"lng":102.277318}'>Stadion UNIB</option>
+                <option value='{"lat":-3.757171,"lng":102.274808}'>Perpustakaan UNIB</option>
+                <option valur='{"lat":-3.759452,"lng":102.276208}'>Gerbang Keluar UNIB</option>
+                <option value='{"lat":-3.755764,"lng":102.276428}'>Gedung Belajar V</option>
+                <option value='{"lat":-3.755458,"lng":102.278037}'> Gedung FKIK</option>
+                <option value='{"lat":-3.760228,"lng":102.268134}'>Gedung Fakultas Hukum</option>
+                <option value='{"lat":-3.758103,"lng":102.276583}'>Gedung Serba Guna</option>
+                <option value='{"lat":-3.759136,"lng":102.276122}'>Masjid Baitul Hikmah</option>
+                <option value='{"lat":-3.761646,"lng":102.271771}'>Klinik UNIB</option>
+            </select>
+
+            <label for="select-end">Titik Tujuan:</label>
+            <select id="select-end" onchange="handleSelectLocation()">
+                <option value="">-- Klik Manual di Peta --</option>
+                <option value='{"lat":-3.760538,"lng":102.272624}'>Gerbang Utama UNIB</option>
+                <option value='{"lat":-3.758488,"lng":102.276664}'>Laboratorium Teknik</option>
+                <option value='{"lat":-3.759751,"lng":102.272474}'>Gedung Rektorat</option>
+                <option value='{"lat":-3.757755,"lng":102.277318}'>Stadion UNIB</option>
+                <option value='{"lat":-3.757171,"lng":102.274808}'>Perpustakaan UNIB</option>
+                <option valur='{"lat":-3.759452,"lng":102.276208}'>Gerbang Keluar UNIB</option>
+                <option value='{"lat":-3.755764,"lng":102.276428}'>Gedung Belajar V</option>
+                <option value='{"lat":-3.755458,"lng":102.278037}'> Gedung FKIK</option>
+                <option value='{"lat":-3.760228,"lng":102.268134}'>Gedung Fakultas Hukum</option>
+                <option value='{"lat":-3.758103,"lng":102.276583}'>Gedung Serba Guna</option>
+                <option value='{"lat":-3.759136,"lng":102.276122}'>Masjid Baitul Hikmah</option>
+                <option value='{"lat":-3.761646,"lng":102.271771}'>Klinik UNIB</option>
+            </select>
+        </div>
+
+        <div>
+            <div class="section-title">Pilih Algoritma</div>
+            <div class="algo-container">
+                <button id="btn-dijkstra" class="active-dijkstra" onclick="setAlgorithm(false)">Dijkstra (Jalur Jalan)</button>
+                <button id="btn-heuristic" onclick="setAlgorithm(true)">Heuristic (Jalur Udara)</button>
+            </div>
+        </div>
+
+        <div>
+            <div class="section-title">Petunjuk & Status</div>
+            <div id="status">Klik dua titik di peta atau gunakan menu pilihan di atas.</div>
+            
+            <div class="coord-helper" id="coord-display">
+                <b>Alat Bantu Koordinat:</b><br>Klik sembarang tempat di peta untuk melihat nilai koordinat aslinya di sini.
+            </div>
+        </div>
+
+        <div>
+            <div class="section-title">Hasil Analisis</div>
+            <div class="info-card" id="info">
+                <div class="info-item"><b>Jarak:</b> -</div>
+                <div class="info-item"><b>Algoritma:</b> Belum dipilih</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    const unibCoords = [-3.7578, 102.2741];
+    const map = L.map('map').setView(unibCoords, 16);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    let markers = [];
+    let polyline = null;
+    let useAStar = false; 
+
+    function loadSavedMarkers() {
+        const savedData = localStorage.getItem('saved_unib_markers');
+        if (savedData) {
+            const coordsArray = JSON.parse(savedData); 
+            
+            coordsArray.forEach((coords) => {
+                const marker = L.marker([coords.lat, coords.lng]).addTo(map);
+                markers.push(marker);
+            });
+
+            if (markers.length === 2) {
+                document.getElementById('status').innerText = "Rute dimuat kembali dari memori.";
+                calculateRoute();
+            }
+        }
+    }
+
+    loadSavedMarkers();
+
+    function setAlgorithm(isHeuristic) {
+        useAStar = isHeuristic;
+        
+        const btnDijkstra = document.getElementById('btn-dijkstra');
+        const btnHeuristic = document.getElementById('btn-heuristic');
+
+        if (isHeuristic) {
+            btnHeuristic.className = 'active-heuristic';
+            btnDijkstra.className = '';
+            document.getElementById('status').innerText = "Mode Aktif: Heuristic Search";
+        } else {
+            btnDijkstra.className = 'active-dijkstra';
+            btnHeuristic.className = '';
+            document.getElementById('status').innerText = "Mode Exec: Dijkstra";
+        }
+
+        if (markers.length === 2) calculateRoute();
+    }
+
+    function handleSelectLocation() {
+        const startVal = document.getElementById('select-start').value;
+        const endVal = document.getElementById('select-end').value;
+
+        markers.forEach(m => map.removeLayer(m));
+        markers = [];
+        if (polyline) map.removeLayer(polyline);
+
+        if (startVal) {
+            const startCoords = JSON.parse(startVal);
+            const markerStart = L.marker([startCoords.lat, startCoords.lng]).addTo(map);
+            markers.push(markerStart);
+        }
+
+        if (endVal) {
+            const endCoords = JSON.parse(endVal);
+            const markerEnd = L.marker([endCoords.lat, endCoords.lng]).addTo(map);
+            markers.push(markerEnd);
+        }
+
+        const currentCoords = markers.map(m => m.getLatLng());
+        localStorage.setItem('saved_unib_markers', JSON.stringify(currentCoords));
+
+        if (markers.length === 1) {
+            document.getElementById('status').innerText = "Titik awal dipilih. Silakan pilih titik tujuan.";
+        }
+
+        if (markers.length === 2) {
+            calculateRoute();
+        }
+    }
+
+    map.on('click', function(e) {
+        // MENAMPILKAN KOORDINAT DI SINI
+        document.getElementById('coord-display').innerHTML = `
+            <b>Koordinat Klik Terbaru:</b><br>
+            <code>{"lat":${e.latlng.lat.toFixed(6)},"lng":${e.latlng.lng.toFixed(6)}}</code>
+        `;
+
+        if (markers.length >= 2) {
+            markers.forEach(m => map.removeLayer(m));
+            markers = [];
+            if (polyline) map.removeLayer(polyline);
+            
+            localStorage.removeItem('saved_unib_markers');
+            
+            document.getElementById('select-start').value = "";
+            document.getElementById('select-end').value = "";
+
+            document.getElementById('info').innerHTML = `
+                <div class="info-item"><b>Jarak:</b> -</div>
+                <div class="info-item"><b>Algoritma:</b> -</div>
+            `;
+        }
+
+        const marker = L.marker(e.latlng).addTo(map);
+        markers.push(marker);
+
+        const currentCoords = markers.map(m => m.getLatLng());
+        localStorage.setItem('saved_unib_markers', JSON.stringify(currentCoords));
+
+        if (markers.length === 1) {
+            document.getElementById('status').innerText = "Titik awal ditentukan! Sekarang klik titik tujuan.";
+        }
+
+        if (markers.length === 2) {
+            calculateRoute();
+        }
+    });
+
+    async function calculateRoute() {
+        const startLatLng = markers[0].getLatLng();
+        const endLatLng = markers[1].getLatLng();
+        const startStr = `${startLatLng.lng},${startLatLng.lat}`;
+        const endStr = `${endLatLng.lng},${endLatLng.lat}`;
+        
+        document.getElementById('status').innerText = "Sedang menghitung rute terbaik...";
+
+        try {
+            if (useAStar === false) {
+                const res = await fetch(`/api/route?start=${startStr}&end=${endStr}&alt=false`);
+                const data = await res.json();
+                const latLngs = data.path.map(coord => [coord[1], coord[0]]);
+
+                if (polyline) map.removeLayer(polyline);
+                polyline = L.polyline(latLngs, {color: '#007bff', weight: 6, opacity: 0.8}).addTo(map);
+                
+                document.getElementById('info').innerHTML = `
+                    <div class="info-item"><b>Jarak Rute:</b> ${data.distance.toFixed(2)} meter</div>
+                    <div class="info-item"><b>Algoritma:</b> Dijkstra (Jalan Raya)</div>
+                `;
+            } else {
+                if (polyline) map.removeLayer(polyline);
+                polyline = L.polyline([startLatLng, endLatLng], {
+                    color: '#dc3545', 
+                    weight: 5, 
+                    dashArray: '10, 10',
+                    opacity: 0.8
+                }).addTo(map);
+                
+                const jarakUdara = map.distance(startLatLng, endLatLng);
+
+                document.getElementById('info').innerHTML = `
+                    <div class="info-item"><b>Jarak Udara:</b> ${jarakUdara.toFixed(2)} meter</div>
+                    <div class="info-item"><b>Algoritma:</b> Heuristic (Garis Lurus)</div>
+                `;
+            }
+            
+            map.fitBounds(polyline.getBounds());
+            document.getElementById('status').innerText = "Rute berhasil dipetakan!";
+        } catch (err) {
+            document.getElementById('status').innerText = "Gagal mengambil data rute.";
+        }
+    }
+</script>
+</body>
+</html>
