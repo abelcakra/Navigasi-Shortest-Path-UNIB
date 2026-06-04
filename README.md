@@ -1,5 +1,5 @@
 🗺️ Sistem Navigasi Rute Terpendek UNIB
-<div align="center">
+
 Aplikasi web interaktif untuk mencari rute terpendek antar gedung di kampus Universitas Bengkulu menggunakan algoritma Dijkstra dan Heuristic.
 🌐 Lihat Demo Live · 📄 Laporan · 🐛 Laporkan Bug
 </div>
